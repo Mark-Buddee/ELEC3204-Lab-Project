@@ -1,0 +1,43 @@
+int Kp = 3;
+int Ki = 2;
+int Kd = 1;
+
+PID myPID(&difference, &driverOut, &setPoint,Kp,Ki,Kd, DIRECT);
+
+void setup() {
+
+myPID.SetMode(AUTOMATIC);
+
+attachInterrupt(digitalPinToInterrupt(2), blink, CHANGE);
+pinMode(3, OUTPUT);
+pinMode(4, OUTPUT);
+pinMode(LED_BUILTIN, OUTPUT);
+
+digitalWrite(3, HIGH);
+digitalWrite(4, HIGH);
+digitalWrite(LED_BUILTIN, LOW);
+
+Serial.begin(9600);
+
+}
+
+void loop() {
+myPID.Compute();
+analogWrite(3, driverOut);
+Serial.print("  difference: "); Serial.print(difference); Serial.print("  ");
+Serial.print("setPoint: "); Serial.print(setPoint); Serial.print("  ");
+Serial.print("driverOut: "); Serial.println(driverOut);
+digitalWrite(LED_BUILTIN, LOW);
+recvOneChar();
+showNewData();
+
+}
+
+void blink() {
+quarterSpins++;
+currentTime = millis();
+difference = currentTime - changeTime;
+changeTime = currentTime;
+
+digitalWrite(LED_BUILTIN, HIGH);
+}
