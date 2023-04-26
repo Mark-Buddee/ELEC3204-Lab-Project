@@ -37,7 +37,17 @@ void setup() {
 //------------------------- main loop ----------------------------//
 void loop() 
 {
-  PWM(30); //set duty of PWM as 30%
+    //PID
+  int Kp = 0.5;
+  int SP = ??;  //desired speed
+  int et  = (SP - PV);  //PV = speed we got 
+  if (abs(et) > SP/2){
+    output = 100 * (et/abs(et));
+  } else {
+    output = Kp * et;
+  }
+  
+  PWM(output); //set duty of PWM as 30%
 
   // Print the direction to the serial monitor
   Serial.print("  direction = ");
