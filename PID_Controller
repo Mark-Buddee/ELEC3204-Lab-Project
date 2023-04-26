@@ -1,43 +1,39 @@
-int Kp = 3;
-int Ki = 2;
-int Kd = 1;
+//PID constants
+double kp = 2;
+double ki = 5;
+double kd = 1;
 
-PID myPID(&difference, &driverOut, &setPoint,Kp,Ki,Kd, DIRECT);
+unsigned long currentTime, previousTime;
+double elapsedTime;
+double error;
+double lastError;
+double input, output, setPoint;
+double cumError, rateError;
 
-void setup() {
+void setup(){
+        setPoint = 0;                          //set point at zero degrees
+}    
 
-myPID.SetMode(AUTOMATIC);
-
-attachInterrupt(digitalPinToInterrupt(2), blink, CHANGE);
-pinMode(3, OUTPUT);
-pinMode(4, OUTPUT);
-pinMode(LED_BUILTIN, OUTPUT);
-
-digitalWrite(3, HIGH);
-digitalWrite(4, HIGH);
-digitalWrite(LED_BUILTIN, LOW);
-
-Serial.begin(9600);
-
-}
-
-void loop() {
-myPID.Compute();
-analogWrite(3, driverOut);
-Serial.print("  difference: "); Serial.print(difference); Serial.print("  ");
-Serial.print("setPoint: "); Serial.print(setPoint); Serial.print("  ");
-Serial.print("driverOut: "); Serial.println(driverOut);
-digitalWrite(LED_BUILTIN, LOW);
-recvOneChar();
-showNewData();
+void loop(){
+        input = analogRead(A0);                //read from rotary encoder connected to A0
+        output = computePID(input);
+        delay(100);
+        analogWrite(3, output);                //control the motor based on PID value
 
 }
 
-void blink() {
-quarterSpins++;
-currentTime = millis();
-difference = currentTime - changeTime;
-changeTime = currentTime;
+double computePID(double inp){     
+        currentTime = millis();                //get current time
+        elapsedTime = (double)(currentTime - previousTime);        //compute time elapsed from previous computation
+        
+        error = setPoint - inp;                                // determine error
+        cumError += error * elapsedTime;                // compute integral
+        rateError = (error - lastError)/elapsedTime;   // compute derivative
 
-digitalWrite(LED_BUILTIN, HIGH);
+        double out = kp*error + ki*cumError + kd*rateError;                //PID output               
+
+        lastError = error;                                //remember current error
+        previousTime = currentTime;                        //remember current time
+
+        return out;                                        //have function return the PID output
 }
