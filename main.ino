@@ -43,11 +43,10 @@ void loop()
   Serial.print("  direction = ");
   Serial.print(direction);
 
+  // Print frequency to the serial monitor
   float f = 1000000/dt;
   Serial.print("  f = ");
   Serial.println(f);
-
-  // delay(1000);
 }
 
 //------------------------- subroutine PWM generate complementary PWM from OCR1A and OCR1B ----------------------------//
@@ -66,8 +65,9 @@ void PWM(int pwm)
   TCCR1A |= _BV(WGM11); //Set ICR1 phas correct mode
 }
 
-
+//------------------------- interrupt subroutine on rising edge of input pin 1 ----------------------------//
 void edgeRise() {
+  // Get direction
   if(digitalRead(INPIN2) == LOW) {
     direction = 1;
   } else if(digitalRead(INPIN2) == HIGH) {
@@ -75,7 +75,8 @@ void edgeRise() {
   } else {
     Serial.println("error");
   }
-  
+
+  // Get period of signal
   T = micros();
   dt = T - t;
   t = micros();
