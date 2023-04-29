@@ -1,39 +1,25 @@
-//PID constants
-double kp = 2;
-double ki = 5;
-double kd = 1;
+import <math.h>
+import <PID_v1.h>
 
-unsigned long currentTime, previousTime;
-double elapsedTime;
-double error;
-double lastError;
-double input, output, setPoint;
-double cumError, rateError;
+//to be inserted in the loop function first 
 
-void setup(){
-        setPoint = 0;                          //set point at zero degrees
-}    
 
-void loop(){
-        input = analogRead(A0);                //read from rotary encoder connected to A0
-        output = computePID(input);
-        delay(100);
-        analogWrite(3, output);                //control the motor based on PID value
 
-}
+  //Calculate the desired velocity for a distance
+  double Displacement;
+  int RPM;
+  int Diameter; //known
+  int time; // needs to be calculated
+  double Distance; // set by buttons 
+  double DesiredRMP;
+  DesiredRMP = (Distance - Displacement)/(M_PI * Diameter * time);  
 
-double computePID(double inp){     
-        currentTime = millis();                //get current time
-        elapsedTime = (double)(currentTime - previousTime);        //compute time elapsed from previous computation
-        
-        error = setPoint - inp;                                // determine error
-        cumError += error * elapsedTime;                // compute integral
-        rateError = (error - lastError)/elapsedTime;   // compute derivative
+  //PID
+  int kp;
+  double InputRMP;
+  double OutputRMP;
+  int direction;
+  PID(InputRMP,OutputRMP,DesiredRMP,kp,0,0,direction) //both Ki & Kd are set to 0, direction should be either 1 or -1 #not sure)
 
-        double out = kp*error + ki*cumError + kd*rateError;                //PID output               
 
-        lastError = error;                                //remember current error
-        previousTime = currentTime;                        //remember current time
-
-        return out;                                        //have function return the PID output
-}
+  PWM(OutputRMP); //set duty of PWM as 30%
