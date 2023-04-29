@@ -37,16 +37,15 @@ void setup() {
 //------------------------- main loop ----------------------------//
 void loop() 
 {
-    //PID
-  int Kp = 0.5;
-  int SP = ??;  //desired speed
-  int et  = (SP - PV);  //PV = speed we got 
-  if (abs(et) > SP/2){
-    output = 100 * (et/abs(et));
-  } else {
-    output = Kp * et;
-  }
-  
+  //PID
+  double kp;
+  double InputSpeed;
+  double OutputSpeed;
+  double SP;
+  int et;
+  int direction;
+  PID(InputSpeed,OutputSpeed,SP,kp,0,0,direction) //SP (setpoint desired point, both Ki & Kd are set to 0, direction should be either 1 or -1 #not sure)
+
   PWM(output); //set duty of PWM as 30%
 
   // Print the direction to the serial monitor
