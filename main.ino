@@ -1,6 +1,5 @@
-// This code is to generate a pair of complemenatry PWM pulse using Timer 1 registers. The register ICR1 is for frequency,  currently of 100  for 10kHz.
-//The duty is determined by the register OCR1A and OCR1B. The two PWM signals are out of pin9 and pin10, with duty of 30% and 70%. 
-//Check details on Timer 1 registers from the datasheet of ATMega328 page113.
+// Part of this code generates a pair of complemenatry PWM pulse using Timer 1 registers. The register ICR1 is for frequency,  currently of 100  for 10kHz.
+// The duty is determined by the register OCR1A and OCR1B
 
 #define PWMA 9
 #define PWMB 10
@@ -16,7 +15,8 @@ volatile long int clicks = 0;
 
 
 //------------------------- setup routine ----------------------------//
-void setup() {
+void setup()
+{
   Serial.begin(9600);
   pinMode(PWMA, OUTPUT);          // output PWMA to Q1
   pinMode(PWMB, OUTPUT);          // output PWMB to Q2
@@ -39,23 +39,7 @@ void setup() {
 //------------------------- main loop ----------------------------//
 void loop() 
 {
-    //Calculate the desired velocity for a distance
-  int RPM;
-  int Diameter; //known
-  int time; //needs to be calculated
-  double Distance; // needs to be calculated 
-  double DesiredRMP;
-  DesiredRMP = (Distance)/(M_PI * Diameter * time);  
-
-  //PID
-  int kp;
-  double InputRMP;
-  double OutputRMP;
-  int direction;
-  PID(InputRMP,OutputRMP,DesiredRMP,kp,0,0,direction) //both Ki & Kd are set to 0, direction should be either 1 or -1 #not sure)
-
-
-  PWM(OutputRMP); //set duty of PWM as 30%
+  PWM(1); //set duty of PWM as 30%
 
   // Print the direction to the serial monitor
   Serial.print("  direction = ");
