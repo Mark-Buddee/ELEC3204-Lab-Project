@@ -1,4 +1,3 @@
-#include <PID_v1.h> //https://github.com/br3ttb/Arduino-PID-Library/
 // This code is to generate a pair of complemenatry PWM pulse using Timer 1 registers. The register ICR1 is for frequency,  currently of 100  for 10kHz.
 //The duty is determined by the register OCR1A and OCR1B. The two PWM signals are out of pin9 and pin10, with duty of 30% and 70%. 
 //Check details on Timer 1 registers from the datasheet of ATMega328 page113.
@@ -13,6 +12,8 @@ volatile int T;
 volatile int dt;
 
 volatile int direction;
+volatile long int clicks = 0;
+
 
 //------------------------- setup routine ----------------------------//
 void setup() {
@@ -38,25 +39,25 @@ void setup() {
 //------------------------- main loop ----------------------------//
 void loop() 
 {
-  //PID
-  double kp;
-  double InputSpeed;
-  double OutputSpeed;
-  double SP;
-  int et;
-  int direction;
-  PID(InputSpeed,OutputSpeed,SP,kp,0,0,direction) //SP (setpoint desired point, both Ki & Kd are set to 0, direction should be either 1 or -1 #not sure)
-
-  PWM(output); //set duty of PWM as 30%
+  PWM(1); //set duty of PWM as 30%
 
   // Print the direction to the serial monitor
   Serial.print("  direction = ");
   Serial.print(direction);
 
+  // Print the clicks to the serial monitor
+  Serial.print("  clicks = ");
+  Serial.print(clicks);
+
+  float rotations = clicks/1623.67;
+  Serial.print("  rotations = ");
+  Serial.print(rotations);
+
   // Print frequency to the serial monitor
   float f = 1000000/dt;
   Serial.print("  f = ");
   Serial.println(f);
+  delay(150);
 }
 
 //------------------------- subroutine PWM generate complementary PWM from OCR1A and OCR1B ----------------------------//
@@ -77,17 +78,22 @@ void PWM(int pwm)
 
 //------------------------- interrupt subroutine on rising edge of input pin 1 ----------------------------//
 void edgeRise() {
+
   // Get direction
   if(digitalRead(INPIN2) == LOW) {
     direction = 1;
   } else if(digitalRead(INPIN2) == HIGH) {
     direction = -1;
   } else {
-    Serial.println("error");
+    Serial.println("Could not read state of INPIN2");
+    exit(1);
   }
 
   // Get period of signal
   T = micros();
   dt = T - t;
   t = micros();
+
+  // Update click counter
+  clicks += direction;
 }
