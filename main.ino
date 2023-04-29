@@ -39,7 +39,23 @@ void setup() {
 //------------------------- main loop ----------------------------//
 void loop() 
 {
-  PWM(1); //set duty of PWM as 30%
+    //Calculate the desired velocity for a distance
+  int RPM;
+  int Diameter; //known
+  int time; //needs to be calculated
+  double Distance; // needs to be calculated 
+  double DesiredRMP;
+  DesiredRMP = (Distance)/(M_PI * Diameter * time);  
+
+  //PID
+  int kp;
+  double InputRMP;
+  double OutputRMP;
+  int direction;
+  PID(InputRMP,OutputRMP,DesiredRMP,kp,0,0,direction) //both Ki & Kd are set to 0, direction should be either 1 or -1 #not sure)
+
+
+  PWM(OutputRMP); //set duty of PWM as 30%
 
   // Print the direction to the serial monitor
   Serial.print("  direction = ");
