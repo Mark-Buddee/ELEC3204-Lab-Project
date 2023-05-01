@@ -56,8 +56,7 @@ void loop()
   double desiredVelocity = getDesiredVelocity(desiredFloor, position);
   double motorOut;
   getMotorOut(&actualVelocity, &motorOut, &actualVelocity);
-  int PWMpercent = (int)(50 + motorOut/100);
-  PWM(PWMpercent);
+  PWM(motorOut);
 
   // Print debug info to serial monitor
   Serial.println((String)"direction = " + direction + " clicks = " + clicks + " f = " + f);
