@@ -158,21 +158,3 @@ void encRise()
   // Update click counter
   clicks += direction;
 }
-
-void but0Rise()
-{
-  desiredFloor = 0;
-  Serial.println("bang");
-}
-
-void but1Rise()
-{
-  desiredFloor = 1;
-  Serial.println("bang1");
-}
-
-void but2Rise()
-{
-  desiredFloor = 2;
-  Serial.println("bang2");
-}
