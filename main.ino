@@ -55,7 +55,7 @@ void loop()
   // Control
   double desiredVelocity = getDesiredVelocity(desiredFloor, position);
   double motorOut;
-  getMotorOut(&actualVelocity, &motorOut, &actualVelocity);
+  getMotorOut(&actualVelocity, &motorOut, &desiredVelocity);
   PWM(motorOut);
 
   // Print debug info to serial monitor
@@ -134,9 +134,9 @@ int getDesiredDirection(int desiredFloor, double position)
 double getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
 {
   int desiredDirection = getDesiredDirection(desiredFloor, position);
-  return 0.01 * desiredDirection;
+  return 0.04 * desiredDirection;
 }
 
-int getMotorOut(double desiredVelocity, double actualVelocity);
+int getMotorOut(double* actualVelocity, double* motorOut, double* desiredVelocity);
 
 
