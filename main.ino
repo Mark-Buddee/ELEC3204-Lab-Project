@@ -3,15 +3,22 @@
 
 #define PWMA 9
 #define PWMB 10
-#define INPIN1 2
-#define INPIN2 4
+#define ENC1 2
+#define ENC2 4
+
+#define DIAM 0.012 // in metres
+#define PI 3.14159
+#define CIRCUM (DIAM*PI)
+#define FLOORHEIGHT 0.2
 
 volatile int t = 0;
-volatile int T;
-volatile int dt;
+volatile int T = 1;
+volatile int dt = 1;
 
-volatile int direction;
+volatile int direction = 1;
 volatile long int clicks = 0;
+
+volatile int desiredFloor = 0;
 
 
 //------------------------- setup routine ----------------------------//
@@ -20,8 +27,8 @@ void setup()
   Serial.begin(9600);
   pinMode(PWMA, OUTPUT);          // output PWMA to Q1
   pinMode(PWMB, OUTPUT);          // output PWMB to Q2
-  pinMode(INPIN1,INPUT);   
-  pinMode(INPIN2,INPUT);
+  pinMode(ENC1,INPUT);   
+  pinMode(ENC2,INPUT);
 
   analogWrite(PWMA, 0);          // let PWMA=0
   analogWrite(PWMB, 0);          // let PWMB=0
@@ -33,31 +40,45 @@ void setup()
   TCCR1B |= _BV(CS11); //set prescaler=8 by lettin the bit value of CS11=1 in register TCCR1B, so the clock frequency=16MHz/8=2MHz
   ICR1 = 100;//  phase correct PWM. PWM frequency determined by counting up 0-100 and counting down 100-0 in the input compare register (ICR1), so freq=200*0.5us=10kHz 
 
-  attachInterrupt(digitalPinToInterrupt(INPIN1),edgeRise,RISING);
+  attachInterrupt(digitalPinToInterrupt(ENC1),encRise,RISING);
 }
 
 //------------------------- main loop ----------------------------//
 void loop() 
 {
-  PWM(1); //set duty of PWM as 30%
+  // Data
+  double f = 1000000/dt;  // Hz
+  double actualVelocity = f * CIRCUM;  // m/s
+  double rotations = clicks/1623.67;  // revolutions
+  double position = rotations * CIRCUM;  // m above starting point
+
+  // Control
+  double desiredVelocity = getDesiredVelocity(desiredFloor, position);
+  double motorOut;
+  getMotorOut(&actualVelocity, &motorOut, &actualVelocity);
+  int PWMpercent = (int)(50 + motorOut/100);
+  PWM(PWMpercent);
+
+  // Print debug info to serial monitor
+  Serial.println((String)"direction = " + direction + " clicks = " + clicks + " f = " + f);
+  delay(150);
 
   // Print the direction to the serial monitor
-  Serial.print("  direction = ");
-  Serial.print(direction);
+  // Serial.print("  direction = ");
+  // Serial.print(direction);
 
   // Print the clicks to the serial monitor
-  Serial.print("  clicks = ");
-  Serial.print(clicks);
+  // Serial.print("  clicks = ");
+  // Serial.print(clicks);
 
-  float rotations = clicks/1623.67;
-  Serial.print("  rotations = ");
-  Serial.print(rotations);
+  // float rotations = clicks/1623.67;
+  // Serial.print("  rotations = ");
+  // Serial.print(rotations);
 
   // Print frequency to the serial monitor
-  float f = 1000000/dt;
-  Serial.print("  f = ");
-  Serial.println(f);
-  delay(150);
+  // float f = 1000000/dt;
+  // Serial.print("  f = ");
+  // Serial.println(f);
 }
 
 //------------------------- subroutine PWM generate complementary PWM from OCR1A and OCR1B ----------------------------//
@@ -77,15 +98,16 @@ void PWM(int pwm)
 }
 
 //------------------------- interrupt subroutine on rising edge of input pin 1 ----------------------------//
-void edgeRise() {
+void encRise()
+{
 
   // Get direction
-  if(digitalRead(INPIN2) == LOW) {
+  if(digitalRead(ENC2) == LOW) {
     direction = 1;
-  } else if(digitalRead(INPIN2) == HIGH) {
+  } else if(digitalRead(ENC2) == HIGH) {
     direction = -1;
   } else {
-    Serial.println("Could not read state of INPIN2");
+    Serial.println("Could not read state of ENC2");
     exit(1);
   }
 
@@ -97,3 +119,25 @@ void edgeRise() {
   // Update click counter
   clicks += direction;
 }
+
+// int getDesiredFloor(volatile bool desiredFloors[3], int position);
+
+int getDesiredDirection(int desiredFloor, double position)
+{
+  double difference = desiredFloor * FLOORHEIGHT - position;
+  if(difference > 0) {
+    return 1;
+  } else {
+    return -1;
+  }  
+}
+
+float getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
+{
+  int desiredDirection = getDesiredDirection(desiredFloor, position);
+  return 50 * desiredDirection;
+}
+
+int getMotorOut(float desiredVelocity, float actualVelocity);
+
+
