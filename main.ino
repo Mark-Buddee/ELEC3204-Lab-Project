@@ -20,6 +20,12 @@ volatile long int clicks = 0;
 
 volatile int desiredFloor = 0;
 
+//Define Variables we'll be connecting to
+double desiredVelocity, actualVelocity, motorOut;
+
+//Specify the links and initial tuning parameters
+PID myPID(&actualVelocity, &motorOut, &desiredVelocity,2,0,0, DIRECT);
+
 
 //------------------------- setup routine ----------------------------//
 void setup()
@@ -41,6 +47,8 @@ void setup()
   ICR1 = 100;//  phase correct PWM. PWM frequency determined by counting up 0-100 and counting down 100-0 in the input compare register (ICR1), so freq=200*0.5us=10kHz 
 
   attachInterrupt(digitalPinToInterrupt(ENC1),encRise,RISING);
+  
+  myPID.SetMode(AUTOMATIC);
 }
 
 //------------------------- main loop ----------------------------//
@@ -137,6 +145,10 @@ double getDesiredVelocity(int desiredFloor, double position) // We have a functi
   return 0.04 * desiredDirection;
 }
 
-int getMotorOut(double* actualVelocity, double* motorOut, double* desiredVelocity);
+int getMotorOut(double* actualVelocity, double* motorOut, double* desiredVelocity)
+{
+  myPID.Compute();
+  return motorOut;
+}
 
 
