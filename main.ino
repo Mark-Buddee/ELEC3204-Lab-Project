@@ -1,3 +1,4 @@
+#include <PID_v1.h> //https://github.com/br3ttb/Arduino-PID-Library/
 // Part of this code generates a pair of complemenatry PWM pulse using Timer 1 registers. The register ICR1 is for frequency,  currently of 100  for 10kHz.
 // The duty is determined by the register OCR1A and OCR1B
 
