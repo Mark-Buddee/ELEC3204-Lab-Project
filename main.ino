@@ -21,7 +21,7 @@
 #define DIAM            0.012          // diameter of motor shaft (m)
 #define PI              3.14159        // pi
 #define CIRCUMFERENCE   (DIAM * PI)    // circumference of motor shaft
-#define FLOOR_HEIGHT     0.2           // height between floors (m)
+#define FLOOR_HEIGHT    0.2           // height between floors (m)
 
 // Tuning parameters
 #define GAIN            100
@@ -30,6 +30,7 @@
 
 // Magic numbers
 #define UPWARDS         1
+#define STATIONARY      0
 #define DOWNWARDS       -1
 
 #define IN_TRANSIT      -1
@@ -45,7 +46,7 @@
 volatile int t0 = 0;
 volatile int t1 = 1;
 volatile int dt;
-volatile int direction = UPWARDS;
+volatile int direction = STATIONARY;
 volatile long int clicks = 0;
 
 // Initial state
@@ -108,8 +109,8 @@ void loop()
   if(floor == FLOOR2) desiredFloors[FLOOR2] = 0;
 
   // Update user interface
-  doKeypadLights(desiredFloors);
-  doFloorNumber(floor);
+  // doKeypadLights(desiredFloors);
+  // doFloorNumber(floor);
 
   // Control
   int desiredFloor = getDesiredFloor(desiredFloors, height);
@@ -146,6 +147,8 @@ void loop()
     Serial.print(desiredVelocity, 5);
     Serial.print(" Actual velocity (m/s): ");
     Serial.print(actualVelocity, 5);
+    Serial.print(" Velocity difference: ");
+    Serial.print(vDiff);
     Serial.print(" Motor change: ");
     Serial.print(motorChange, 2);
     Serial.print(" Motor out: ");
@@ -170,7 +173,7 @@ void loop()
 void PWM(double pwm)
 {
   double temp = (int)pwm;
-  temp = constrain(temp,0,100);
+  temp = constrain(temp, 0, 100);
 
   OCR1A = temp;                         //duty of PWM for pin9 is from output compare register A 
   TCCR1A |= _BV(COM1A1) | _BV(COM1A0);  //set output to low level
@@ -183,24 +186,52 @@ void PWM(double pwm)
 }
 
 //------------------------- various parameter subroutines ----------------------------//
-int getDesiredFloor(int desiredFloors[3], int height) {
-  return 1;
+int getDesiredFloor(int desiredFloors[3], double height)
+{ 
+  // Returns the closest floor that is currently requested. Returns closest floor if none are requested
+  // Super janky method but logic checks out to me
+  float currentFloor = height / FLOOR_HEIGHT;
+  int closestFloor = constrain(round(currentFloor), GROUND, FLOOR2);
+
+  // none are requested 
+  if(!desiredFloors[GROUND] && !desiredFloors[FLOOR1] && !desiredFloors[FLOOR2]) {
+    return closestFloor;
+  }
+  
+  // closest floor is requested
+  if(desiredFloors[closestFloor]) {
+    return closestFloor;
+  }
+
+  // second closest is requested
+  int secondClosest = currentFloor <  0.5 ? 1 :
+                      currentFloor >= 1.5 ? 1 :
+                      currentFloor >= 1.0 ? 2 :
+                                            0;
+  if(desiredFloors[secondClosest]) {
+    return secondClosest;
+  }
+
+  // only one floor is requested
+  return GROUND + FLOOR1 + FLOOR2 - closestFloor - secondClosest;
 }
 
 int getDesiredDirection(int desiredFloor, double height)
 {
+  // Returns the required direction of travel to reach the desired floor
   double difference = desiredFloor * FLOOR_HEIGHT - height;
   if(difference >= MARGIN_OF_ERROR) {
-    return 1;
+    return UPWARDS;
   }
   if(difference <= -MARGIN_OF_ERROR) {
-    return -1;
+    return DOWNWARDS;
   }
-  return 0;
+  return STATIONARY;
 }
 
 double getDesiredVelocity(int desiredFloor, double height)
 {
+  // Returns the desired, signed velocity of the elevator
   int desiredDirection = getDesiredDirection(desiredFloor, height);
   return TRAVEL_SPEED * desiredDirection;
 }
