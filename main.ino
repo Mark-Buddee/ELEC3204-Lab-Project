@@ -132,12 +132,12 @@ int getDesiredDirection(int desiredFloor, double position)
   }  
 }
 
-float getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
+double getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
 {
   int desiredDirection = getDesiredDirection(desiredFloor, position);
-  return 50 * desiredDirection;
+  return 0.01 * desiredDirection;
 }
 
-int getMotorOut(float desiredVelocity, float actualVelocity);
+int getMotorOut(double desiredVelocity, double actualVelocity);
 
 
