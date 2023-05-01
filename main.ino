@@ -1,4 +1,3 @@
-#include <PID_v1.h> //https://github.com/br3ttb/Arduino-PID-Library/
 // Part of this code generates a pair of complemenatry PWM pulse using Timer 1 registers. The register ICR1 is for frequency,  currently of 100  for 10kHz.
 // The duty is determined by the register OCR1A and OCR1B
 
@@ -6,26 +5,29 @@
 #define PWMB 10
 #define ENC1 2
 #define ENC2 4
+#define BUT0 5
+#define BUT1 6
+#define BUT2 7
 
+#define CLICKSPERREV 1300.0
 #define DIAM 0.012 // in metres
 #define PI 3.14159
-#define CIRCUM (DIAM*PI)
+#define CIRCUM DIAM*PI
 #define FLOORHEIGHT 0.2
+
+#define GAIN 100
+#define RANGE 0.03
 
 volatile int t = 0;
 volatile int T = 1;
-volatile int dt = 1;
+volatile int dt;
 
 volatile int direction = 1;
 volatile long int clicks = 0;
 
-volatile int desiredFloor = 0;
+volatile int desiredFloor;
 
-//Define Variables we'll be connecting to
-double desiredVelocity, actualVelocity, motorOut;
-
-//Specify the links and initial tuning parameters
-PID myPID(&actualVelocity, &motorOut, &desiredVelocity,2,0,0, DIRECT); //change the 4th input (kp)
+double output = 0;
 
 
 //------------------------- setup routine ----------------------------//
@@ -36,6 +38,9 @@ void setup()
   pinMode(PWMB, OUTPUT);          // output PWMB to Q2
   pinMode(ENC1,INPUT);   
   pinMode(ENC2,INPUT);
+  pinMode(BUT0, INPUT);
+  pinMode(BUT1, INPUT);
+  pinMode(BUT2, INPUT);
 
   analogWrite(PWMA, 0);          // let PWMA=0
   analogWrite(PWMB, 0);          // let PWMB=0
@@ -48,51 +53,58 @@ void setup()
   ICR1 = 100;//  phase correct PWM. PWM frequency determined by counting up 0-100 and counting down 100-0 in the input compare register (ICR1), so freq=200*0.5us=10kHz 
 
   attachInterrupt(digitalPinToInterrupt(ENC1),encRise,RISING);
-  
-  myPID.SetMode(AUTOMATIC);
+  attachInterrupt(digitalPinToInterrupt(BUT0),but0Rise,RISING);
+  attachInterrupt(digitalPinToInterrupt(BUT1),but1Rise,RISING);
+  attachInterrupt(digitalPinToInterrupt(BUT2),but2Rise,RISING);
 }
 
 //------------------------- main loop ----------------------------//
 void loop() 
 {
   // Data
-  double f = 1000000/dt;  // Hz
-  double actualVelocity = f * CIRCUM;  // m/s
-  double rotations = clicks/1623.67;  // revolutions
+  double f;
+  if(dt > 7000) {
+    f = 0;
+  } else {
+    f = 1000000/dt;  // Hz
+  }
+  double actualVelocity = f * direction * CIRCUM / CLICKSPERREV;  // m/s
+  double rotations = clicks/CLICKSPERREV;  // revolutions
   double position = rotations * CIRCUM;  // m above starting point
+
+  // Calculation
+  int buttonState0 = digitalRead(BUT0);
+  int buttonState1 = digitalRead(BUT1);
+  int buttonState2 = digitalRead(BUT2);
+
+  if(buttonState0 == HIGH) {
+    desiredFloor = 0;
+  }
+  if(buttonState1 == HIGH) {
+    desiredFloor = 1;
+  }
+  if(buttonState2 == HIGH) {
+    desiredFloor = 2;
+  }
 
   // Control
   double desiredVelocity = getDesiredVelocity(desiredFloor, position);
-  double motorOut;
-  getMotorOut(&actualVelocity, &motorOut, &desiredVelocity);
-  PWM(motorOut);
+  double vDiff = desiredVelocity - actualVelocity;
+  double motorChange = GAIN*vDiff;
+  output += motorChange;
+  PWM(50 + output);
 
   // Print debug info to serial monitor
-  Serial.println((String)"direction = " + direction + " clicks = " + clicks + " f = " + f);
-  delay(150);
-
-  // Print the direction to the serial monitor
-  // Serial.print("  direction = ");
-  // Serial.print(direction);
-
-  // Print the clicks to the serial monitor
-  // Serial.print("  clicks = ");
-  // Serial.print(clicks);
-
-  // float rotations = clicks/1623.67;
-  // Serial.print("  rotations = ");
-  // Serial.print(rotations);
-
-  // Print frequency to the serial monitor
-  // float f = 1000000/dt;
-  // Serial.print("  f = ");
-  // Serial.println(f);
+  // "direction = " + direction + ". clicks = " + clicks + ". rotations = " + rotations + ". desiredVelocity = " + desiredVelocity + "
+  Serial.println((String)"position = " + position + ". f = " + f + ". actualVelocity = " + actualVelocity + ". motorChange = " + motorChange);
+  // Serial.println((String)"desiredFloor = " + desiredFloor);
+  delay(100);
 }
 
 //------------------------- subroutine PWM generate complementary PWM from OCR1A and OCR1B ----------------------------//
-void PWM(int pwm)
+void PWM(double pwm)
 {
-  int temp = (int)pwm;
+  double temp = pwm;
   temp = constrain(temp,1,99);
 
   OCR1A = temp; //duty of PWM for pin9 is from output compare register A 
@@ -105,10 +117,29 @@ void PWM(int pwm)
   TCCR1A |= _BV(WGM11); //Set ICR1 phas correct mode
 }
 
-//------------------------- interrupt subroutine on rising edge of input pin 1 ----------------------------//
+// int getDesiredFloor(volatile bool desiredFloors[3], int position);
+
+int getDesiredDirection(int desiredFloor, double position)
+{
+  double difference = desiredFloor * FLOORHEIGHT - position;
+  if(difference > RANGE) {
+    return 1;
+  } else if(difference < -RANGE) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+double getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
+{
+  int desiredDirection = getDesiredDirection(desiredFloor, position);
+  return 0.04 * desiredDirection;
+}
+
+//------------------------- interrupt subroutines on rising edges ----------------------------//
 void encRise()
 {
-
   // Get direction
   if(digitalRead(ENC2) == LOW) {
     direction = 1;
@@ -128,28 +159,20 @@ void encRise()
   clicks += direction;
 }
 
-// int getDesiredFloor(volatile bool desiredFloors[3], int position);
-
-int getDesiredDirection(int desiredFloor, double position)
+void but0Rise()
 {
-  double difference = desiredFloor * FLOORHEIGHT - position;
-  if(difference > 0) {
-    return 1;
-  } else {
-    return -1;
-  }  
+  desiredFloor = 0;
+  Serial.println("bang");
 }
 
-double getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
+void but1Rise()
 {
-  int desiredDirection = getDesiredDirection(desiredFloor, position);
-  return 0.04 * desiredDirection;
+  desiredFloor = 1;
+  Serial.println("bang1");
 }
 
-int getMotorOut(double* actualVelocity, double* motorOut, double* desiredVelocity)
+void but2Rise()
 {
-  myPID.Compute();
-  return motorOut;
+  desiredFloor = 2;
+  Serial.println("bang2");
 }
-
-
