@@ -122,6 +122,7 @@ void loop()
   motorOut += motorChange;
   PWM(50 + motorOut);
 
+  // Floor is reached
   if(floor == desiredFloor && actualVelocity == 0) {
     Serial.println("Floor reached. Waiting 3 seconds...");
     delay(3000);
