@@ -24,7 +24,7 @@ volatile int desiredFloor = 0;
 double desiredVelocity, actualVelocity, motorOut;
 
 //Specify the links and initial tuning parameters
-PID myPID(&actualVelocity, &motorOut, &desiredVelocity,2,0,0, DIRECT);
+PID myPID(&actualVelocity, &motorOut, &desiredVelocity,2,0,0, DIRECT); //change the 4th input (kp)
 
 
 //------------------------- setup routine ----------------------------//
