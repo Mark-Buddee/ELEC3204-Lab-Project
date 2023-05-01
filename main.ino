@@ -1,159 +1,231 @@
-// Part of this code generates a pair of complemenatry PWM pulse using Timer 1 registers. The register ICR1 is for frequency,  currently of 100  for 10kHz.
-// The duty is determined by the register OCR1A and OCR1B
+//------------------------- definitions ----------------------------//
+// Choose which information to output to serial
+#define USER            1
+#define PID             1
+#define DEBUG           1
 
-#define PWMA 9
-#define PWMB 10
-#define ENC1 2
-#define ENC2 4
-#define BUT0 5
-#define BUT1 6
-#define BUT2 7
+// Serial monitor
+#define BAUD_RATE 115200
 
-#define CLICKSPERREV 1300.0
-#define DIAM 0.012 // in metres
-#define PI 3.14159
-#define CIRCUM DIAM*PI
-#define FLOORHEIGHT 0.2
+// Pin numbers
+#define ENC1            2
+#define ENC2            4
+#define BUT0            5
+#define BUT1            6
+#define BUT2            7
+#define PWMA            9
+#define PWMB            10
 
-#define GAIN 100
-#define RANGE 0.03
+// Physical parameters
+#define CLICKS_PER_REV  1300.0         // encoder clicks in one revolution
+#define DIAM            0.012          // diameter of motor shaft (m)
+#define PI              3.14159        // pi
+#define CIRCUMFERENCE   (DIAM * PI)    // circumference of motor shaft
+#define FLOOR_HEIGHT     0.2           // height between floors (m)
 
-volatile int t = 0;
-volatile int T = 1;
+// Tuning parameters
+#define GAIN            100
+#define MARGIN_OF_ERROR 0.03          // allowable deviation from desired elevator height (m)
+#define TRAVEL_SPEED    0.04          // nominal travel speed of elevator (m/s)
+
+// Magic numbers
+#define UPWARDS         1
+#define DOWNWARDS       -1
+
+#define IN_TRANSIT      -1
+#define GROUND          0
+#define FLOOR1          1
+#define FLOOR2          2
+
+#define GROUND_HEIGHT   (GROUND * FLOOR_HEIGHT)
+#define FLOOR1_HEIGHT   (FLOOR1 * FLOOR_HEIGHT)
+#define FLOOR2_HEIGHT   (FLOOR2 * FLOOR_HEIGHT)
+
+// Declare variables that are accessed by interrupts
+volatile int t0 = 0;
+volatile int t1 = 1;
 volatile int dt;
-
-volatile int direction = 1;
+volatile int direction = UPWARDS;
 volatile long int clicks = 0;
 
-volatile int desiredFloor;
+// Initial state
+int desiredFloors[3] = {0, 0, 0};
+double motorOut = 0;
 
-double output = 0;
-
+// Macros
+#define FLOOR(height) (                                                                                                 \
+  ((height) >= GROUND_HEIGHT - MARGIN_OF_ERROR) && ((height) <= GROUND_HEIGHT + MARGIN_OF_ERROR) ? GROUND :             \
+  ((height) >= FLOOR1_HEIGHT - MARGIN_OF_ERROR) && ((height) <= FLOOR1_HEIGHT + MARGIN_OF_ERROR) ? FLOOR1 :             \
+  ((height) >= FLOOR2_HEIGHT - MARGIN_OF_ERROR) && ((height) <= FLOOR2_HEIGHT + MARGIN_OF_ERROR) ? FLOOR2 : IN_TRANSIT  \
+)
 
 //------------------------- setup routine ----------------------------//
 void setup()
 {
-  Serial.begin(9600);
-  pinMode(PWMA, OUTPUT);          // output PWMA to Q1
-  pinMode(PWMB, OUTPUT);          // output PWMB to Q2
+  // Initialise serial monitor
+  Serial.begin(BAUD_RATE);
+
+  // Initialise input pins
   pinMode(ENC1,INPUT);   
   pinMode(ENC2,INPUT);
   pinMode(BUT0, INPUT);
   pinMode(BUT1, INPUT);
   pinMode(BUT2, INPUT);
 
-  analogWrite(PWMA, 0);          // let PWMA=0
-  analogWrite(PWMB, 0);          // let PWMB=0
+  // Initialise PWM outputs
+  pinMode(PWMA, OUTPUT);
+  pinMode(PWMB, OUTPUT);
+  analogWrite(PWMA, 0);
+  analogWrite(PWMB, 0);
 
-  TCCR1A = 0; // clear Timer1 control register TCCR1A & B
+  // Initialise timer for PWM
+  TCCR1A = 0;             // clear Timer1 control register TCCR1A & B
   TCCR1B = 0;
-  TCNT1 = 0; // clear Timer1 counter register
+  TCNT1 = 0;              // clear Timer1 counter register
+  TCCR1B |= _BV(CS11);    // set prescaler to 8. So clock frequency=16MHz/8=2MHz
+  ICR1 = 100;             // phase correct PWM. PWM frequency determined by counting up 0-100 and counting down 100-0 in the input compare register (ICR1), so freq=200*0.5us=10kHz 
 
-  TCCR1B |= _BV(CS11); //set prescaler=8 by lettin the bit value of CS11=1 in register TCCR1B, so the clock frequency=16MHz/8=2MHz
-  ICR1 = 100;//  phase correct PWM. PWM frequency determined by counting up 0-100 and counting down 100-0 in the input compare register (ICR1), so freq=200*0.5us=10kHz 
-
+  // Initialise ISR
   attachInterrupt(digitalPinToInterrupt(ENC1),encRise,RISING);
-  attachInterrupt(digitalPinToInterrupt(BUT0),but0Rise,RISING);
-  attachInterrupt(digitalPinToInterrupt(BUT1),but1Rise,RISING);
-  attachInterrupt(digitalPinToInterrupt(BUT2),but2Rise,RISING);
 }
 
 //------------------------- main loop ----------------------------//
 void loop() 
 {
   // Data
-  double f;
-  if(dt > 7000) {
-    f = 0;
-  } else {
-    f = 1000000/dt;  // Hz
-  }
-  double actualVelocity = f * direction * CIRCUM / CLICKSPERREV;  // m/s
-  double rotations = clicks/CLICKSPERREV;  // revolutions
-  double position = rotations * CIRCUM;  // m above starting point
+  double f_enc = dt > 7000 ? 0 : 1000000/dt;                                    // frequency of encoder signal (Hz)
+  double actualVelocity = f_enc * direction * CIRCUMFERENCE / CLICKS_PER_REV;   // vertical velocity of elevator (m/s)
+  double rotations = clicks / CLICKS_PER_REV;                                   // revolution count of motor shaft (revs)
+  double height = rotations * CIRCUMFERENCE;                                    // height of elevator (m)
 
-  // Calculation
-  int buttonState0 = digitalRead(BUT0);
-  int buttonState1 = digitalRead(BUT1);
-  int buttonState2 = digitalRead(BUT2);
+  if(digitalRead(BUT0) == HIGH) desiredFloors[GROUND] = 1;
+  if(digitalRead(BUT1) == HIGH) desiredFloors[FLOOR1] = 1;
+  if(digitalRead(BUT2) == HIGH) desiredFloors[FLOOR2] = 1;
 
-  if(buttonState0 == HIGH) {
-    desiredFloor = 0;
-  }
-  if(buttonState1 == HIGH) {
-    desiredFloor = 1;
-  }
-  if(buttonState2 == HIGH) {
-    desiredFloor = 2;
-  }
+  int floor = FLOOR(height);
+  if(floor == GROUND) desiredFloors[GROUND] = 0;
+  if(floor == FLOOR1) desiredFloors[FLOOR1] = 0;
+  if(floor == FLOOR2) desiredFloors[FLOOR2] = 0;
+
+  // Update user interface
+  doKeypadLights(desiredFloors);
+  doFloorNumber(floor);
 
   // Control
-  double desiredVelocity = getDesiredVelocity(desiredFloor, position);
+  int desiredFloor = getDesiredFloor(desiredFloors, height);
+  double desiredVelocity = getDesiredVelocity(desiredFloor, height);
   double vDiff = desiredVelocity - actualVelocity;
-  double motorChange = GAIN*vDiff;
-  output += motorChange;
-  PWM(50 + output);
+  double motorChange = GAIN * vDiff;
 
-  // Print debug info to serial monitor
-  // "direction = " + direction + ". clicks = " + clicks + ". rotations = " + rotations + ". desiredVelocity = " + desiredVelocity + "
-  Serial.println((String)"position = " + position + ". f = " + f + ". actualVelocity = " + actualVelocity + ". motorChange = " + motorChange);
-  // Serial.println((String)"desiredFloor = " + desiredFloor);
+  // Output
+  motorOut += motorChange;
+  PWM(50 + motorOut);
+
+  if(floor == desiredFloor && actualVelocity == 0) {
+    Serial.println("Floor reached. Waiting 3 seconds...");
+    delay(3000);
+    desiredFloors[desiredFloor] = 0;
+  }
+
+  // Serial output
+  if(USER) {
+    Serial.print("Floor number: ");
+    Serial.print(floor);
+    Serial.print(" Direction: ");
+    direction == UPWARDS    ? Serial.print("upwards")   :
+    direction == DOWNWARDS  ? Serial.print("downwards") :
+                              Serial.print("in transit");
+    Serial.print(" Going to: ");
+    desiredFloor == GROUND ? Serial.println("Ground")  :
+    desiredFloor == FLOOR1 ? Serial.println("Floor 1") :
+    desiredFloor == FLOOR2 ? Serial.println("Floor 2") : 
+                             Serial.println("Error");
+  }
+  if(PID) {
+    Serial.print("Desired velocity (m/s): ");
+    Serial.print(desiredVelocity, 5);
+    Serial.print(" Actual velocity (m/s): ");
+    Serial.print(actualVelocity, 5);
+    Serial.print(" Motor change: ");
+    Serial.print(motorChange, 2);
+    Serial.print(" Motor out: ");
+    Serial.println(motorOut, 2);    
+  }
+  if(DEBUG) {
+    Serial.print(" f_enc: ");
+    Serial.print(f_enc);
+    Serial.print(" Height: ");
+    Serial.print(height);
+    Serial.print(" Ground: ");
+    Serial.print(desiredFloors[GROUND]);
+    Serial.print(" Floor 1: ");
+    Serial.print(desiredFloors[FLOOR1]);
+    Serial.print(" Floor 2: ");
+    Serial.print(desiredFloors[FLOOR2]);
+  }
   delay(100);
 }
 
 //------------------------- subroutine PWM generate complementary PWM from OCR1A and OCR1B ----------------------------//
 void PWM(double pwm)
 {
-  double temp = pwm;
-  temp = constrain(temp,1,99);
+  double temp = (int)pwm;
+  temp = constrain(temp,0,100);
 
-  OCR1A = temp; //duty of PWM for pin9 is from output compare register A 
-  TCCR1A |= _BV(COM1A1) | _BV(COM1A0); //set output to low level
+  OCR1A = temp;                         //duty of PWM for pin9 is from output compare register A 
+  TCCR1A |= _BV(COM1A1) | _BV(COM1A0);  //set output to low level
 
-  OCR1B = temp;//duty of PWM for pin10 is from output compare register B
-  TCCR1A |= _BV(COM1B1); //set output to high level
+  OCR1B = temp;                         //duty of PWM for pin10 is from output compare register B
+  TCCR1A |= _BV(COM1B1);                //set output to high level
 
-  TCCR1B |= _BV(WGM13); //
-  TCCR1A |= _BV(WGM11); //Set ICR1 phas correct mode
+  TCCR1B |= _BV(WGM13);
+  TCCR1A |= _BV(WGM11);                 //Set ICR1 phas correct mode
 }
 
-// int getDesiredFloor(volatile bool desiredFloors[3], int position);
+//------------------------- various parameter subroutines ----------------------------//
+int getDesiredFloor(int desiredFloors[3], int height) {
+  return 1;
+}
 
-int getDesiredDirection(int desiredFloor, double position)
+int getDesiredDirection(int desiredFloor, double height)
 {
-  double difference = desiredFloor * FLOORHEIGHT - position;
-  if(difference > RANGE) {
+  double difference = desiredFloor * FLOOR_HEIGHT - height;
+  if(difference >= MARGIN_OF_ERROR) {
     return 1;
-  } else if(difference < -RANGE) {
-    return -1;
-  } else {
-    return 0;
   }
+  if(difference <= -MARGIN_OF_ERROR) {
+    return -1;
+  }
+  return 0;
 }
 
-double getDesiredVelocity(int desiredFloor, double position) // We have a function for this in case we want to complicate the function for velocity. ie a non-constant velocity
+double getDesiredVelocity(int desiredFloor, double height)
 {
-  int desiredDirection = getDesiredDirection(desiredFloor, position);
-  return 0.04 * desiredDirection;
+  int desiredDirection = getDesiredDirection(desiredFloor, height);
+  return TRAVEL_SPEED * desiredDirection;
 }
 
-//------------------------- interrupt subroutines on rising edges ----------------------------//
+//------------------------- user interface subroutines ----------------------------//
+void doKeypadLights(int desiredFloors[3]);
+void doFloorNumber(int floor);
+
+//------------------------- interrupt subroutine on encoder channel 1 rising edge ----------------------------//
 void encRise()
 {
   // Get direction
   if(digitalRead(ENC2) == LOW) {
-    direction = 1;
+    direction = UPWARDS;
   } else if(digitalRead(ENC2) == HIGH) {
-    direction = -1;
+    direction = DOWNWARDS;
   } else {
     Serial.println("Could not read state of ENC2");
     exit(1);
   }
 
   // Get period of signal
-  T = micros();
-  dt = T - t;
-  t = micros();
+  t1 = micros();
+  dt = t1 - t0;
+  t0 = micros();
 
   // Update click counter
   clicks += direction;
