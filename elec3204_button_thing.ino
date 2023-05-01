@@ -2,15 +2,15 @@
 
 
 
-const int buttonPin0 = 2;  // the number of the pushbutton pin
-const int buttonPin1 = 3;
+const int buttonPin0 = 5;  // the number of the pushbutton pin
+const int buttonPin1 = 6;
+const int buttonPin2 = 7;
 
-const int segpinA = 4;
-const int segpinB = 5;
-const int segpinC = 6;
-const int segpinD = 7;
+const int segpinA = 8;
+const int segpinB = 11;
+const int segpinC = 10;
+const int segpinD = 9;
 
-const int buttonPin2 = 8;
 //const int ledPin = 13;    // the number of the LED pin
 
 // variables will change:
