@@ -1,7 +1,7 @@
 //------------------------- definitions ----------------------------//
 // Choose which information to output to serial
-#define USER            1
-#define PID             1
+#define USER            0
+#define PID             0
 #define DEBUG           1
 
 // Pin numbers
@@ -15,6 +15,10 @@
 #define LED0            A1
 #define LED1            A2
 #define LED2            A3
+#define SEGA            12
+#define SEGB            8
+#define SEGC            13
+#define SEGD            11
 
 // Physical parameters
 #define CLICKS_PER_REV  1300.0        // encoder clicks in one revolution
@@ -24,7 +28,7 @@
 #define FLOOR_HEIGHT    0.15          // height between floors (m)
 
 // Tuning parameters
-#define GAIN            100
+#define GAIN            120
 #define MARGIN_OF_ERROR 0.03            // allowable deviation from desired elevator height (m)
 #define TRAVEL_SPEED    0.04          // nominal travel speed of elevator (m/s)
 
@@ -35,6 +39,7 @@
 #define STATIONARY      0
 #define DOWNWARDS       -1
 
+#define IDLE            -2
 #define IN_TRANSIT      -1
 #define GROUND          0
 #define FLOOR1          1
@@ -81,6 +86,11 @@ void setup()
   pinMode(LED1, OUTPUT);
   pinMode(LED2, OUTPUT);  
 
+  pinMode(SEGA, OUTPUT);
+  pinMode(SEGB, OUTPUT);
+  pinMode(SEGC, OUTPUT);
+  pinMode(SEGD, OUTPUT);  
+
   // Initialise PWM outputs
   pinMode(PWMA, OUTPUT);
   pinMode(PWMB, OUTPUT);
@@ -102,7 +112,7 @@ void setup()
 void loop() 
 {
   // Data
-  double f_enc = dt > 7000 ? 0 : 1000000/dt;                                    // frequency of encoder signal (Hz)
+  double f_enc = dt > 18000 ? 0 : 1000000/dt;                                    // frequency of encoder signal (Hz)
   double actualVelocity = f_enc * direction * CIRCUMFERENCE / CLICKS_PER_REV;   // vertical velocity of elevator (m/s)
   double rotations = clicks / CLICKS_PER_REV;                                   // revolution count of motor shaft (revs)
   double height = rotations * CIRCUMFERENCE;                                    // height of elevator (m)
@@ -112,13 +122,13 @@ void loop()
   if(digitalRead(BUT2) == HIGH) desiredFloors[FLOOR2] = 1;
 
   int floor = FLOOR(height);
-  if(floor == GROUND) desiredFloors[GROUND] = 0; lastFloor = GROUND;
-  if(floor == FLOOR1) desiredFloors[FLOOR1] = 0; lastFloor = FLOOR1;
-  if(floor == FLOOR2) desiredFloors[FLOOR2] = 0; lastFloor = FLOOR2;
+  if(floor == GROUND) lastFloor = GROUND;
+  if(floor == FLOOR1) lastFloor = FLOOR1;
+  if(floor == FLOOR2) lastFloor = FLOOR2;
 
   // Update user interface
-  // doKeypadLights(desiredFloors);
-  // doFloorNumber(lastFloor);
+  doKeypadLights(desiredFloors);
+  doFloorNumber(lastFloor);
 
   // Control
   int desiredFloor = getDesiredFloor(desiredFloors, height);
@@ -153,14 +163,14 @@ void loop()
   }
   if(PID) {
     Serial.print("Desired velocity (m/s): ");
-    Serial.print(desiredVelocity, 5);
-    Serial.print(" Actual velocity (m/s): ");
-    Serial.print(actualVelocity, 5);
-    Serial.print(" Velocity difference: ");
+    Serial.print(desiredVelocity, 3);
+    Serial.print("    Actual velocity (m/s): ");
+    Serial.print(actualVelocity, 3);
+    Serial.print("    Velocity difference: ");
     Serial.print(vDiff);
-    Serial.print(" Motor change: ");
+    Serial.print("    Motor change: ");
     Serial.print(motorChange, 2);
-    Serial.print(" Motor out: ");
+    Serial.print("    Motor out: ");
     Serial.println(motorOut, 2);    
   }
   if(DEBUG) {
@@ -174,9 +184,12 @@ void loop()
     Serial.print(desiredFloors[FLOOR1]);
     Serial.print(" Floor 2: ");
     Serial.print(desiredFloors[FLOOR2]);
+    Serial.print(" Last floor : ");
+    Serial.println(lastFloor);
   }
   delay(100);
 }
+
 
 //------------------------- subroutine PWM generate complementary PWM from OCR1A and OCR1B ----------------------------//
 void PWM(double pwm)
@@ -194,17 +207,18 @@ void PWM(double pwm)
   TCCR1A |= _BV(WGM11);                 //Set ICR1 phas correct mode
 }
 
+
 //------------------------- various parameter subroutines ----------------------------//
 int getDesiredFloor(int desiredFloors[3], double height)
 { 
-  // Returns the closest floor that is currently requested. Returns closest floor if none are requested
+  // Returns the closest floor that is currently requested. Returns IDLE if none are requested
   // Super janky method but logic checks out to me
   float currentFloor = height / FLOOR_HEIGHT;
   int closestFloor = constrain(round(currentFloor), GROUND, FLOOR2);
 
   // none are requested 
   if(!desiredFloors[GROUND] && !desiredFloors[FLOOR1] && !desiredFloors[FLOOR2]) {
-    return closestFloor;
+    return closestFloor; // TODO
   }
   
   // closest floor is requested
@@ -250,26 +264,50 @@ void doKeypadLights(int desiredFloors[3])
 {
   // Ground LED
   if(desiredFloors[GROUND]) {
-    analogWrite(LED0, HIGH);
+    digitalWrite(LED0, HIGH);
   } else {
-    analogWrite(LED0, LOW);
+    digitalWrite(LED0, LOW);
   }
 
   // Floor 1 LED
   if(desiredFloors[FLOOR1]) {
-    analogWrite(LED1, HIGH);
+    digitalWrite(LED1, HIGH);
   } else {
-    analogWrite(LED1, LOW);
+    digitalWrite(LED1, LOW);
   }
 
   // Floor 2 LED
   if(desiredFloors[FLOOR2]) {
-    analogWrite(LED2, HIGH);
+    digitalWrite(LED2, HIGH);
   } else {
-    analogWrite(LED2, LOW);
+    digitalWrite(LED2, LOW);
   }
 }
-void doFloorNumber(int lastFloor);
+void doFloorNumber(int lastFloor)
+{
+  if(lastFloor == GROUND) {
+    digitalWrite(SEGA, HIGH);
+    digitalWrite(SEGB, HIGH);
+    digitalWrite(SEGC, HIGH);
+    digitalWrite(SEGD, HIGH);
+    return;
+  }
+  if(lastFloor == FLOOR1) {
+    digitalWrite(SEGA, LOW);
+    digitalWrite(SEGB, HIGH);
+    digitalWrite(SEGC, HIGH);
+    digitalWrite(SEGD, HIGH);
+    return;
+  }
+  if(lastFloor == FLOOR2) {
+    digitalWrite(SEGA, HIGH);
+    digitalWrite(SEGB, LOW);
+    digitalWrite(SEGC, HIGH);
+    digitalWrite(SEGD, HIGH);
+    return;
+  }
+
+}
 
 //------------------------- interrupt subroutine on encoder channel 1 rising edge ----------------------------//
 void encRise()
