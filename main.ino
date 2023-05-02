@@ -4,9 +4,6 @@
 #define PID             1
 #define DEBUG           1
 
-// Serial monitor
-#define BAUD_RATE 115200
-
 // Pin numbers
 #define ENC1            2
 #define ENC2            4
@@ -15,20 +12,25 @@
 #define BUT2            7
 #define PWMA            9
 #define PWMB            10
+#define LED0            A1
+#define LED1            A2
+#define LED2            A3
 
 // Physical parameters
-#define CLICKS_PER_REV  1300.0         // encoder clicks in one revolution
-#define DIAM            0.012          // diameter of motor shaft (m)
-#define PI              3.14159        // pi
-#define CIRCUMFERENCE   (DIAM * PI)    // circumference of motor shaft
-#define FLOOR_HEIGHT    0.2           // height between floors (m)
+#define CLICKS_PER_REV  1300.0        // encoder clicks in one revolution
+#define DIAM            0.012         // diameter of motor shaft (m)
+#define PI              3.14159       // pi
+#define CIRCUMFERENCE   (DIAM * PI)   // circumference of motor shaft
+#define FLOOR_HEIGHT    0.15          // height between floors (m)
 
 // Tuning parameters
 #define GAIN            100
-#define MARGIN_OF_ERROR 0.03          // allowable deviation from desired elevator height (m)
+#define MARGIN_OF_ERROR 0.03            // allowable deviation from desired elevator height (m)
 #define TRAVEL_SPEED    0.04          // nominal travel speed of elevator (m/s)
 
 // Magic numbers
+#define BAUD_RATE 115200
+
 #define UPWARDS         1
 #define STATIONARY      0
 #define DOWNWARDS       -1
@@ -52,6 +54,7 @@ volatile long int clicks = 0;
 // Initial state
 int desiredFloors[3] = {0, 0, 0};
 double motorOut = 0;
+int lastFloor = GROUND;
 
 // Macros
 #define FLOOR(height) (                                                                                                 \
@@ -67,11 +70,16 @@ void setup()
   Serial.begin(BAUD_RATE);
 
   // Initialise input pins
-  pinMode(ENC1,INPUT);   
-  pinMode(ENC2,INPUT);
+  pinMode(ENC1, INPUT);   
+  pinMode(ENC2, INPUT);
   pinMode(BUT0, INPUT);
   pinMode(BUT1, INPUT);
   pinMode(BUT2, INPUT);
+
+  // Initialise user interface output pins
+  pinMode(LED0, OUTPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);  
 
   // Initialise PWM outputs
   pinMode(PWMA, OUTPUT);
@@ -104,13 +112,13 @@ void loop()
   if(digitalRead(BUT2) == HIGH) desiredFloors[FLOOR2] = 1;
 
   int floor = FLOOR(height);
-  if(floor == GROUND) desiredFloors[GROUND] = 0;
-  if(floor == FLOOR1) desiredFloors[FLOOR1] = 0;
-  if(floor == FLOOR2) desiredFloors[FLOOR2] = 0;
+  if(floor == GROUND) desiredFloors[GROUND] = 0; lastFloor = GROUND;
+  if(floor == FLOOR1) desiredFloors[FLOOR1] = 0; lastFloor = FLOOR1;
+  if(floor == FLOOR2) desiredFloors[FLOOR2] = 0; lastFloor = FLOOR2;
 
   // Update user interface
   // doKeypadLights(desiredFloors);
-  // doFloorNumber(floor);
+  // doFloorNumber(lastFloor);
 
   // Control
   int desiredFloor = getDesiredFloor(desiredFloors, height);
@@ -238,8 +246,30 @@ double getDesiredVelocity(int desiredFloor, double height)
 }
 
 //------------------------- user interface subroutines ----------------------------//
-void doKeypadLights(int desiredFloors[3]);
-void doFloorNumber(int floor);
+void doKeypadLights(int desiredFloors[3]) 
+{
+  // Ground LED
+  if(desiredFloors[GROUND]) {
+    analogWrite(LED0, HIGH);
+  } else {
+    analogWrite(LED0, LOW);
+  }
+
+  // Floor 1 LED
+  if(desiredFloors[FLOOR1]) {
+    analogWrite(LED1, HIGH);
+  } else {
+    analogWrite(LED1, LOW);
+  }
+
+  // Floor 2 LED
+  if(desiredFloors[FLOOR2]) {
+    analogWrite(LED2, HIGH);
+  } else {
+    analogWrite(LED2, LOW);
+  }
+}
+void doFloorNumber(int lastFloor);
 
 //------------------------- interrupt subroutine on encoder channel 1 rising edge ----------------------------//
 void encRise()
