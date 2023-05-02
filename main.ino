@@ -7,18 +7,22 @@
 // Pin numbers
 #define ENC1            2
 #define ENC2            4
-#define BUT0            5
-#define BUT1            6
-#define BUT2            7
+#define BUT0            12
+#define BUT1            11
+#define BUT2            8
 #define PWMA            9
 #define PWMB            10
-#define LED0            A1
-#define LED1            A2
-#define LED2            A3
-#define SEGA            12
-#define SEGB            8
-#define SEGC            13
-#define SEGD            11
+#define LED0            5
+#define LED1            6
+#define LED2            7
+#define SEGA            A3           
+#define SEGC            A0
+#define SEGD            A2
+#define SEGE            A1
+#define SEGF            A4
+#define SEGG            A5
+
+
 
 // Physical parameters
 #define CLICKS_PER_REV  1300.0        // encoder clicks in one revolution
@@ -87,9 +91,11 @@ void setup()
   pinMode(LED2, OUTPUT);  
 
   pinMode(SEGA, OUTPUT);
-  pinMode(SEGB, OUTPUT);
   pinMode(SEGC, OUTPUT);
-  pinMode(SEGD, OUTPUT);  
+  pinMode(SEGD, OUTPUT);
+  pinMode(SEGE, OUTPUT);
+  pinMode(SEGF, OUTPUT);
+  pinMode(SEGG, OUTPUT);  
 
   // Initialise PWM outputs
   pinMode(PWMA, OUTPUT);
@@ -286,24 +292,30 @@ void doKeypadLights(int desiredFloors[3])
 void doFloorNumber(int lastFloor)
 {
   if(lastFloor == GROUND) {
-    digitalWrite(SEGA, HIGH);
-    digitalWrite(SEGB, HIGH);
-    digitalWrite(SEGC, HIGH);
-    digitalWrite(SEGD, HIGH);
+    digitalWrite(SEGA, LOW);
+    digitalWrite(SEGC, LOW);
+    digitalWrite(SEGD, LOW);
+    digitalWrite(SEGE, LOW);
+    digitalWrite(SEGF, LOW);
+    digitalWrite(SEGG, HIGH);
     return;
   }
   if(lastFloor == FLOOR1) {
-    digitalWrite(SEGA, LOW);
-    digitalWrite(SEGB, HIGH);
-    digitalWrite(SEGC, HIGH);
+    digitalWrite(SEGA, HIGH);
+    digitalWrite(SEGC, LOW);
     digitalWrite(SEGD, HIGH);
+    digitalWrite(SEGE, HIGH);
+    digitalWrite(SEGF, HIGH);
+    digitalWrite(SEGG, HIGH);
     return;
   }
   if(lastFloor == FLOOR2) {
-    digitalWrite(SEGA, HIGH);
-    digitalWrite(SEGB, LOW);
+    digitalWrite(SEGA, LOW);
     digitalWrite(SEGC, HIGH);
-    digitalWrite(SEGD, HIGH);
+    digitalWrite(SEGD, LOW);
+    digitalWrite(SEGE, LOW);
+    digitalWrite(SEGF, HIGH);
+    digitalWrite(SEGG, LOW);
     return;
   }
 
