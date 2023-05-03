@@ -22,8 +22,6 @@
 #define SEGF            A4
 #define SEGG            A5
 
-
-
 // Physical parameters
 #define CLICKS_PER_REV  1300.0        // encoder clicks in one revolution
 #define DIAM            0.012         // diameter of motor shaft (m)
@@ -33,12 +31,12 @@
 
 // Tuning parameters
 #define GAIN            120
-#define MARGIN_OF_ERROR 0.03            // allowable deviation from desired elevator height (m)
-#define VDIFF_ALLOWANCE 0.0025
+#define MARGIN_OF_ERROR 0.03          // allowable deviation from desired elevator height (m)
+#define VDIFF_ALLOWANCE 0.0025        // allowable deviation from velocity of zero (m/s)
 #define TRAVEL_SPEED    0.04          // nominal travel speed of elevator (m/s)
 
 // Magic numbers
-#define BAUD_RATE 115200
+#define BAUD_RATE       115200
 
 #define UPWARDS         1
 #define STATIONARY      0
@@ -148,6 +146,7 @@ void loop()
   // Output
   motorOut += motorChange;
   PWM(50 + motorOut);
+  // PWM(20);
 
   // Floor is reached
   // if(floor == desiredFloor && actualVelocity == 0) {
@@ -160,7 +159,7 @@ void loop()
   // Serial output
   if(USER) {
     Serial.print("Floor number: ");
-    Serial.print(floor);
+    Serial.print(lastFloor);
     Serial.print(" Direction: ");
     direction == UPWARDS    ? Serial.print("upwards")   :
     direction == DOWNWARDS  ? Serial.print("downwards") :
