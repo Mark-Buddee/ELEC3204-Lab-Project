@@ -1,8 +1,8 @@
 //------------------------- definitions ----------------------------//
 // Choose which information to output to serial
 #define USER            0
-#define PID             0
-#define DEBUG           1
+#define PID             1
+#define DEBUG           0
 
 // Pin numbers
 #define ENC1            2
@@ -29,11 +29,12 @@
 #define DIAM            0.012         // diameter of motor shaft (m)
 #define PI              3.14159       // pi
 #define CIRCUMFERENCE   (DIAM * PI)   // circumference of motor shaft
-#define FLOOR_HEIGHT    0.15          // height between floors (m)
+#define FLOOR_HEIGHT    0.18          // height between floors (m)
 
 // Tuning parameters
 #define GAIN            120
 #define MARGIN_OF_ERROR 0.03            // allowable deviation from desired elevator height (m)
+#define VDIFF_ALLOWANCE 0.0025
 #define TRAVEL_SPEED    0.04          // nominal travel speed of elevator (m/s)
 
 // Magic numbers
@@ -117,8 +118,10 @@ void setup()
 //------------------------- main loop ----------------------------//
 void loop() 
 {
+  // PWM(35);
+  // PWM(70);
   // Data
-  double f_enc = dt > 18000 ? 0 : 1000000/dt;                                    // frequency of encoder signal (Hz)
+  double f_enc = dt > 17000 ? 0 : 1000000/dt;                                    // frequency of encoder signal (Hz)
   double actualVelocity = f_enc * direction * CIRCUMFERENCE / CLICKS_PER_REV;   // vertical velocity of elevator (m/s)
   double rotations = clicks / CLICKS_PER_REV;                                   // revolution count of motor shaft (revs)
   double height = rotations * CIRCUMFERENCE;                                    // height of elevator (m)
@@ -147,9 +150,10 @@ void loop()
   PWM(50 + motorOut);
 
   // Floor is reached
-  if(floor == desiredFloor && actualVelocity == 0) {
-    Serial.println("Floor reached. Waiting 3 seconds...");
-    delay(3000);
+  // if(floor == desiredFloor && actualVelocity == 0) {
+  if(floor == desiredFloor && abs(actualVelocity) < VDIFF_ALLOWANCE) {
+    Serial.println("Floor reached. Waiting 1 seconds...");
+    delay(1000);
     desiredFloors[desiredFloor] = 0;
   }
 
@@ -224,7 +228,8 @@ int getDesiredFloor(int desiredFloors[3], double height)
 
   // none are requested 
   if(!desiredFloors[GROUND] && !desiredFloors[FLOOR1] && !desiredFloors[FLOOR2]) {
-    return closestFloor; // TODO
+    // return closestFloor; // TODO
+    return IDLE;
   }
   
   // closest floor is requested
@@ -248,6 +253,7 @@ int getDesiredFloor(int desiredFloors[3], double height)
 int getDesiredDirection(int desiredFloor, double height)
 {
   // Returns the required direction of travel to reach the desired floor
+  if(desiredFloor == IDLE) return STATIONARY;
   double difference = desiredFloor * FLOOR_HEIGHT - height;
   if(difference >= MARGIN_OF_ERROR) {
     return UPWARDS;
