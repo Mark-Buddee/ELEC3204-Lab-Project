@@ -1,6 +1,6 @@
 # ELEC3204-Lab-Project
 
-Dynamically control a real, small-scale, elevator motor.
+Dynamically control a real, small-scale, elevator. The elevator has multiple floors, a motor, and motor controller.
 
 Dynamically remembers which floors need to be reached and always moves to the next closest desired floor.
 
